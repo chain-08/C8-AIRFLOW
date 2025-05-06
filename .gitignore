@@ -1,0 +1,33 @@
+# Ignore the Python virtual environment directory
+venv/
+
+# Ignore Python bytecode files
+__pycache__/
+*.pyc
+*.pyo
+
+# Ignore log files
+*.log
+
+# Ignore ClickHouse data directory
+clickhouse_data/
+
+# Ignore Docker related files (e.g., logs, containers)
+docker-compose.override.yml
+.docker/
+
+# Ignore configuration files (if not used in the repo)
+config.xml
+users.xml
+
+# Ignore system files
+.DS_Store
+Thumbs.db
+
+# Ignore IDE/editor-specific files
+.idea/
+.vscode/
+*.swp
+
+# Ignore .env file (if you don't want it pushed to Git)
+.env

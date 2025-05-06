@@ -1,0 +1,32 @@
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest  # Official ClickHouse image
+    container_name: clickhouse-server
+    ports:
+      - "8123:8123"  # HTTP interface for querying ClickHouse
+      - "9000:9000"  # Native protocol for ClickHouse (used by the ClickHouse client)
+      - "9440:9440"  # Optional: TLS interface (for secure connections)
+    environment:
+      CLICKHOUSE_DB: ${CLICKHOUSE_DB}          # Default database from .env file
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}      # User from .env file
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD} # Password from .env file
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse  # Persistent storage for ClickHouse data
+      # - ./config.xml:/etc/clickhouse-server/config.xml  # Mount custom config file from the host to the container
+      # - ./users.xml:/etc/clickhouse-server/users.xml    # Mount custom users file from the host to the container
+    networks:
+      - c8_crons
+    restart: always
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query=SELECT 1"]
+      interval: 30s
+      retries: 3
+      start_period: 30s
+      timeout: 10s
+
+networks:
+  c8_crons:
+    driver: bridge
+
+volumes:
+  clickhouse_data:
