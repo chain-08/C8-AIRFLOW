@@ -1,3 +1,5 @@
+# btc_pipeline/fetch_ohlc_data.py
+
 import requests
 from dotenv import load_dotenv
 import os
@@ -8,7 +10,7 @@ import clickhouse_connect
 load_dotenv()
 API_KEY = os.getenv('BINANCE_API_KEY')
 SECRET_KEY = os.getenv('BINANCE_SECRET_KEY')
-CLICKHOUSE_HOST = 'localhost'
+CLICKHOUSE_HOST = os.getenv('CLICKHOUSE_HOST', 'localhost')
 CLICKHOUSE_USER = os.getenv('CLICKHOUSE_USER', 'default')
 CLICKHOUSE_PASSWORD = os.getenv('CLICKHOUSE_PASSWORD', '')
 CLICKHOUSE_DB = os.getenv('CLICKHOUSE_DB', 'default')
@@ -18,14 +20,21 @@ client = clickhouse_connect.get_client(
     host=CLICKHOUSE_HOST,
     username=CLICKHOUSE_USER,
     password=CLICKHOUSE_PASSWORD,
-    port=8123
+    port=8123,
+    interface='http'
 )
 
 # === 3️⃣ Binance API endpoint and parameters ===
 url = "https://api.binance.com/api/v3/klines"
 
-def fetch_and_insert_data(start_date, end_date):
-    print(f"Fetching data from {start_date} to {end_date}...")
+def fetch_and_insert_data(execution_date):
+    """
+    Fetches OHLC data from Binance API and inserts it into ClickHouse.
+    """
+    print(f"Fetching data for {execution_date}...")
+    
+    start_date = datetime.strptime(execution_date, "%Y-%m-%d")
+    end_date = start_date + timedelta(days=1)
     
     params = {
         'symbol': 'BTCUSDT',
@@ -44,7 +53,6 @@ def fetch_and_insert_data(start_date, end_date):
     if response.status_code == 200:
         data = response.json()
         
-        # === 4️⃣ Insert data into ClickHouse ===
         batch_data = []
         for candle in data:
             batch_data.append((
@@ -79,19 +87,7 @@ def fetch_and_insert_data(start_date, end_date):
             ]
         )
 
-        print(f"✅ Data inserted successfully for {start_date} to {end_date}")
+        print(f"✅ Data inserted successfully for {execution_date}")
     else:
         print(f"❌ Failed to retrieve data: {response.status_code}")
         print(f"Error: {response.text}")
-
-
-# === 5️⃣ Fetch data for each day from May 7 to May 13 ===
-start_date = datetime(2025, 5, 7)
-end_date = datetime(2025, 5, 13)
-
-current_date = start_date
-while current_date <= end_date:
-    fetch_and_insert_data(current_date, current_date + timedelta(days=1))
-    current_date += timedelta(days=1)
-
-print("🎉 All data from May 7 to May 13 has been successfully inserted into ClickHouse!")
