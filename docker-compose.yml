@@ -1,5 +1,4 @@
-version: '3.9'
-
+version: '3.8'
 services:
   clickhouse:
     image: clickhouse/clickhouse-server:latest
@@ -9,9 +8,9 @@ services:
       - "9000:9000"   # Native protocol for ClickHouse
       - "9440:9440"   # Optional: TLS interface (for secure connections)
     environment:
-      CLICKHOUSE_DB: ${CLICKHOUSE_DB}          # Default database from .env file
-      CLICKHOUSE_USER: ${CLICKHOUSE_USER}      # User from .env file
-      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD} # Password from .env file
+      CLICKHOUSE_DB: ${CLICKHOUSE_DB}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
     volumes:
       - clickhouse_data:/var/lib/clickhouse
     networks:
@@ -19,7 +18,7 @@ services:
     healthcheck:
       test: ["CMD", "clickhouse-client", "--query=SELECT 1"]
       interval: 30s
-      retries: 3
+      retries: 5
       start_period: 30s
       timeout: 10s
 
@@ -27,7 +26,8 @@ services:
     image: apache/airflow:2.5.1
     container_name: airflow-server
     depends_on:
-      - clickhouse
+      clickhouse:
+        condition: service_healthy
     ports:
       - "8080:8080"
     environment:
@@ -36,7 +36,7 @@ services:
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
       AIRFLOW__WEBSERVER__WORKERS: 2
       AIRFLOW__CORE__SQL_ALCHEMY_CONN: "sqlite:////airflow/airflow.db"
-      AIRFLOW__CORE__FERNET_KEY: "YOUR_FERNET_KEY"  # Replace with your Fernet Key
+      AIRFLOW__CORE__FERNET_KEY: "YOUR_FERNET_KEY"
     volumes:
       - ./dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs
@@ -45,30 +45,47 @@ services:
       - c8_crons
     restart: always
     command: "airflow standalone"
-
-  zookeeper:
-    image: bitnami/zookeeper:latest
-    container_name: zookeeper
-    ports:
-      - "2181:2181"
-    networks:
-      - c8_crons
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:8080/health || exit 1"]
+      interval: 30s
+      retries: 5
+      start_period: 20s
+      timeout: 10s
 
   kafka:
-    image: bitnami/kafka:latest
+    image: confluentinc/cp-kafka:latest
     container_name: kafka-server
+    hostname: kafka-server
     ports:
       - "9092:9092"
+      - "9093:9093"
     environment:
-      KAFKA_CFG_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
-      KAFKA_CFG_LISTENERS: PLAINTEXT://kafka-server:9092,EXTERNAL://0.0.0.0:9092
-      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://kafka-server:9092,EXTERNAL://localhost:9092
-      ALLOW_PLAINTEXT_LISTENER: "yes"
-    depends_on:
-      - zookeeper
+      KAFKA_KRAFT_MODE: "true"  
+      KAFKA_PROCESS_ROLES: controller,broker
+      KAFKA_NODE_ID: 1
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka-server:9093"
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-server:9092
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      CLUSTER_ID: "jX3k8fxjRX-b7I9OgYPLQg"  
+    volumes:
+      - kafka_data:/var/lib/kafka/data
     networks:
       - c8_crons
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics.sh --list --bootstrap-server kafka-server:9092 || exit 1"]
+      interval: 30s
+      retries: 5
+      start_period: 40s
+      timeout: 10s
 
 networks:
   c8_crons:
@@ -76,6 +93,12 @@ networks:
 
 volumes:
   clickhouse_data:
+    driver: local
+  kafka_data:
+    driver: local
   airflow_logs:
+    driver: local
   airflow_dags:
+    driver: local
   airflow_plugins:
+    driver: local
