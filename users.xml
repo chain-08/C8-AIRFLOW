@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<clickhouse>
+
+    <!-- Users Configuration -->
+    <users>
+        <!-- Chain8 user configuration -->
+        <chain8>
+            <profile>default</profile>   <!-- Profile to be used by the user -->
+            <quota>default</quota>       <!-- Quota to be applied (you can customize this) -->
+            <networks>
+                <ip>::/0</ip>           <!-- Allow all IPs to connect (be cautious for production) -->
+            </networks>
+            <!-- Use the environment variable to inject the password from .env -->
+            <password_sha256_hex>${CLICKHOUSE_PASSWORD}</password_sha256_hex>
+        </chain8>
+    </users>
+
+</clickhouse>

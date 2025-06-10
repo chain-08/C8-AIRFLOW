@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<clickhouse>
+
+    <!-- Logging configuration -->
+    <logger>
+        <level>info</level> <!-- Logging level: trace, debug, info, warning, error -->
+        <console>1</console> <!-- Enable logging to console -->
+        <log>./logs/clickhouse.log</log> <!-- Path for log file -->
+        <errorlog>./logs/clickhouse_error.log</errorlog> <!-- Path for error log file -->
+    </logger>
+
+    <!-- Network settings -->
+    <tcp_port>9000</tcp_port>  <!-- Native TCP port for ClickHouse -->
+    <http_port>8123</http_port> <!-- HTTP interface port -->
+    <https_port>9440</https_port> <!-- HTTPS interface port for secure connections -->
+
+    <!-- Default database settings -->
+    <default_database>default</default_database> <!-- Set the default database -->
+
+    <!-- Data directory settings -->
+    <path>/var/lib/clickhouse/</path> <!-- Path for persistent storage of ClickHouse data -->
+
+    <!-- Temporary directory for ClickHouse -->
+    <tmp_path>/tmp/clickhouse/</tmp_path>
+
+    <!-- Max simultaneous connections -->
+    <max_connections>1024</max_connections>
+
+    <!-- Memory limits for the server -->
+    <max_memory_usage>10000000000</max_memory_usage> <!-- Max memory usage in bytes (default 10GB) -->
+
+    <!-- User files and directories -->
+    <user_files_path>/etc/clickhouse-server/</user_files_path> <!-- Path to user configuration files -->
+
+</clickhouse>

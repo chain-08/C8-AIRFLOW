@@ -1,16 +1,19 @@
 version: '3.8'
+
 services:
   clickhouse:
-    image: clickhouse/clickhouse-server:latest
+    image: clickhouse/clickhouse-server:23.8.1.68
     container_name: clickhouse-server
     ports:
-      - "8123:8123"   # HTTP interface for querying ClickHouse
-      - "9000:9000"   # Native protocol for ClickHouse
-      - "9440:9440"   # Optional: TLS interface (for secure connections)
+      - "8123:8123"
+      - "9000:9000"
+      - "9440:9440"
     environment:
       CLICKHOUSE_DB: ${CLICKHOUSE_DB}
       CLICKHOUSE_USER: ${CLICKHOUSE_USER}
-      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_PASSWORD_FILE: /run/secrets/clickhouse_password
+    secrets:
+      - clickhouse_password
     volumes:
       - clickhouse_data:/var/lib/clickhouse
     networks:
@@ -22,21 +25,44 @@ services:
       start_period: 30s
       timeout: 10s
 
-  airflow:
-    image: apache/airflow:2.5.1
-    container_name: airflow-server
+  postgres:
+    image: postgres:14.7
+    container_name: postgres-airflow
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_DB: airflow
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - c8_crons
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      interval: 10s
+      retries: 5
+      start_period: 20s
+      timeout: 10s
+
+  airflow-webserver:
+    image: apache/airflow:2.7.3
+    container_name: airflow-webserver
     depends_on:
+      postgres:
+        condition: service_healthy
       clickhouse:
         condition: service_healthy
     ports:
       - "8080:8080"
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
-      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
-      AIRFLOW__WEBSERVER__WORKERS: 2
-      AIRFLOW__CORE__SQL_ALCHEMY_CONN: "sqlite:////airflow/airflow.db"
-      AIRFLOW__CORE__FERNET_KEY: "YOUR_FERNET_KEY"
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: >
+        postgresql+psycopg2://airflow:$(cat /run/secrets/postgres_password)@postgres:5432/airflow
+      AIRFLOW__CORE__FERNET_KEY: "${AIRFLOW__CORE__FERNET_KEY}"
+      # (you can move the fernet key to a secret later)
     volumes:
       - ./dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs
@@ -44,7 +70,7 @@ services:
     networks:
       - c8_crons
     restart: always
-    command: "airflow standalone"
+    command: ["airflow", "webserver"]
     healthcheck:
       test: ["CMD-SHELL", "curl --fail http://localhost:8080/health || exit 1"]
       interval: 30s
@@ -52,36 +78,58 @@ services:
       start_period: 20s
       timeout: 10s
 
+  airflow-scheduler:
+    image: apache/airflow:2.7.3
+    container_name: airflow-scheduler
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: >
+        postgresql+psycopg2://airflow:$(cat /run/secrets/postgres_password)@postgres:5432/airflow
+      AIRFLOW__CORE__FERNET_KEY: "${AIRFLOW__CORE__FERNET_KEY}"
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+    networks:
+      - c8_crons
+    restart: always
+    command: ["airflow", "scheduler"]
+
   kafka:
-    image: confluentinc/cp-kafka:latest
+    image: confluentinc/cp-kafka:7.9.1
     container_name: kafka-server
     hostname: kafka-server
     ports:
       - "9092:9092"
       - "9093:9093"
     environment:
-      KAFKA_KRAFT_MODE: "true"  
-      KAFKA_PROCESS_ROLES: controller,broker
+      KAFKA_KRAFT_MODE: "true"
+      KAFKA_PROCESS_ROLES: "controller,broker"
       KAFKA_NODE_ID: 1
       KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka-server:9093"
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT"
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-server:9092
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka-server:9092"
       KAFKA_LOG_DIRS: /var/lib/kafka/data
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_LOG_RETENTION_HOURS: 168
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      CLUSTER_ID: "jX3k8fxjRX-b7I9OgYPLQg"  
+      CLUSTER_ID: "jX3k8fxjRX-b7I9OgYPLQg"
     volumes:
       - kafka_data:/var/lib/kafka/data
     networks:
       - c8_crons
     restart: always
     healthcheck:
-      test: ["CMD-SHELL", "kafka-topics.sh --list --bootstrap-server kafka-server:9092 || exit 1"]
+      test: ["CMD-SHELL", "echo > /dev/tcp/kafka-server/9092 || exit 1"]
       interval: 30s
       retries: 5
       start_period: 40s
@@ -96,9 +144,21 @@ volumes:
     driver: local
   kafka_data:
     driver: local
+  postgres_data:
+    driver: local
   airflow_logs:
     driver: local
   airflow_dags:
     driver: local
   airflow_plugins:
     driver: local
+
+secrets:
+  clickhouse_password:
+    file: ./secrets/clickhouse_password.txt
+  postgres_password:
+    file: ./secrets/postgres_password.txt
+  binance_api_key:
+    file: ./secrets/binance_api_key.txt
+  binance_secret_key:
+    file: ./secrets/binance_secret_key.txt
