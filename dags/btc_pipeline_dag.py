@@ -58,7 +58,7 @@ def fetch_and_store(**context):
     )]
 
     client = clickhouse_connect.get_client(
-        host='clickhouse-server',
+        host='54.234.38.203',
         port=8123,
         username='chain8',
         password='c8_2025',
@@ -101,7 +101,7 @@ with DAG(
     dag_id='btc_to_clickhouse_daily',
     default_args=default_args,
     schedule_interval='@daily',
-    start_date=datetime(2025, 6, 8),
+    start_date=datetime(2025, 6, 1),
     catchup=True,
     tags=["binance", "clickhouse"],
 ) as dag:

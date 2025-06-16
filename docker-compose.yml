@@ -1,30 +1,4 @@
-version: '3.8'
-
 services:
-  clickhouse:
-    image: clickhouse/clickhouse-server:23.8
-    container_name: clickhouse-server
-    ports:
-      - "8123:8123"
-      - "9000:9000"
-      - "9440:9440"
-    environment:
-      CLICKHOUSE_DB: ${CLICKHOUSE_DB:-default}
-      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-chain8}
-      CLICKHOUSE_PASSWORD_FILE: /run/secrets/clickhouse_password
-    secrets:
-      - clickhouse_password
-    volumes:
-      - clickhouse_data:/var/lib/clickhouse
-    networks:
-      - c8_crons
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8123/ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-
   postgres:
     image: postgres:14.7
     container_name: postgres-airflow
@@ -56,8 +30,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      clickhouse:
-        condition: service_healthy
     ports:
       - "8080:8080"
     environment:
@@ -65,12 +37,14 @@ services:
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
       AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW__CORE__FERNET_KEY:-your_fernet_key_here}
     volumes:
+      - ./entrypoint.sh:/opt/airflow/entrypoint.sh
       - ./dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs
       - ./plugins:/opt/airflow/plugins
     networks:
       - c8_crons
     restart: always
+    entrypoint: /opt/airflow/entrypoint.sh
     command: ["airflow", "webserver"]
     healthcheck:
       test: ["CMD-SHELL", "curl --fail http://localhost:8080/health || exit 1"]
@@ -78,8 +52,6 @@ services:
       retries: 5
       start_period: 20s
       timeout: 10s
-    secrets:
-      - clickhouse_password
 
   airflow-scheduler:
     image: apache/airflow:2.7.3
@@ -87,19 +59,19 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      clickhouse:
-        condition: service_healthy
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
       AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW__CORE__FERNET_KEY:-your_fernet_key_here}
     volumes:
+      - ./entrypoint.sh:/opt/airflow/entrypoint.sh
       - ./dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs
       - ./plugins:/opt/airflow/plugins
     networks:
       - c8_crons
     restart: always
+    entrypoint: /opt/airflow/entrypoint.sh
     command: ["airflow", "scheduler"]
 
   kafka:
@@ -137,44 +109,17 @@ services:
       start_period: 40s
       timeout: 10s
 
-  c8dbeaver:
-    image: dbeaver/cloudbeaver:latest
-    container_name: c8dbeaver
-    ports:
-      - "8980:8978"
-    environment:
-      - CB_SERVER_NAME=DBeaver
-      - CB_SERVER_PORT=8978
-      - CB_ADMIN_NAME=admin
-      - CB_ADMIN_PASSWORD=admin
-    networks:
-      - c8_crons
-    depends_on:
-      clickhouse:
-        condition: service_healthy
-    restart: always
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8978"]
-      interval: 30s
-      retries: 5
-      start_period: 30s
-      timeout: 10s
-
 networks:
   c8_crons:
     driver: bridge
 
 volumes:
-  clickhouse_data:
   kafka_data:
   postgres_data:
   airflow_logs:
   airflow_dags:
   airflow_plugins:
-  dbeaver_data:
 
 secrets:
-  clickhouse_password:
-    file: ./secrets/clickhouse_password.txt
   postgres_password:
     file: ./secrets/postgres_password.txt
