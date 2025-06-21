@@ -1,3 +1,5 @@
+version: "3.8"
+
 services:
   postgres:
     image: postgres:14.7
@@ -38,9 +40,9 @@ services:
       AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW__CORE__FERNET_KEY:-your_fernet_key_here}
     volumes:
       - ./entrypoint.sh:/opt/airflow/entrypoint.sh
-      - ./dags:/opt/airflow/dags
-      - ./logs:/opt/airflow/logs
-      - ./plugins:/opt/airflow/plugins
+      - ./dags:/opt/airflow/dags  # Keep dags from source repo
+      - /media/inglorious/ds/logs/airflow:/opt/airflow/logs
+      - /media/inglorious/ds/logs/plugins:/opt/airflow/plugins
     networks:
       - c8_crons
     restart: always
@@ -66,8 +68,8 @@ services:
     volumes:
       - ./entrypoint.sh:/opt/airflow/entrypoint.sh
       - ./dags:/opt/airflow/dags
-      - ./logs:/opt/airflow/logs
-      - ./plugins:/opt/airflow/plugins
+      - /media/inglorious/ds/logs/airflow:/opt/airflow/logs
+      - /media/inglorious/ds/logs/plugins:/opt/airflow/plugins
     networks:
       - c8_crons
     restart: always
@@ -116,9 +118,6 @@ networks:
 volumes:
   kafka_data:
   postgres_data:
-  airflow_logs:
-  airflow_dags:
-  airflow_plugins:
 
 secrets:
   postgres_password:
