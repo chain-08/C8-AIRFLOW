@@ -9,7 +9,7 @@ from functools import wraps
 # ------------------------
 # Configuration
 # ------------------------
-CURRENCY = "INR"  # 🔥 Change to 'USD', 'CAD', 'EUR' as needed
+CURRENCY = "INR"  # 🔥 Change as needed
 API_KEY = "67ad1bea200726.95055451"
 BASE_URL = "https://eodhd.com/api"
 CLICKHOUSE_HOST = '54.234.38.203'
@@ -124,8 +124,8 @@ def fetch_eod_for_symbol(symbol_code, exchange, currency, ticker_type):
         df["date"] = pd.to_datetime(df["date"]).dt.date
 
         df = df[[
-            "code", "exchange", "currency", "type", "date", "open", "high", "low",
-            "close", "adjusted_close", "volume"
+            "code", "date", "open", "high", "low", "close",
+            "adjusted_close", "volume", "currency", "exchange", "type"
         ]]
 
         print(f"✅ Success {symbol}")
@@ -158,8 +158,8 @@ if result_dfs:
         table=TABLE_NAME,
         data=final_df.values.tolist(),
         column_names=[
-            "code", "exchange", "currency", "type", "date", "open", "high", "low",
-            "close", "adjusted_close", "volume"
+            "code", "date", "open", "high", "low", "close",
+            "adjusted_close", "volume", "currency", "exchange", "type"
         ]
     )
     print(f"\n✅ Inserted {len(final_df)} rows into {TABLE_NAME}")
