@@ -1,9 +1,8 @@
-version: "3.8"
-
 services:
   postgres:
     image: postgres:14.7
     container_name: postgres-airflow
+    restart: always
     environment:
       POSTGRES_USER: airflow
       POSTGRES_DB: airflow
@@ -29,6 +28,7 @@ services:
       dockerfile: Dockerfile
     image: apache/airflow:2.7.3-python3.10
     container_name: airflow-webserver
+    restart: always
     depends_on:
       postgres:
         condition: service_healthy
@@ -47,7 +47,6 @@ services:
       - /media/inglorious/ds/logs/plugins:/opt/airflow/plugins
     networks:
       - c8_crons
-    restart: always
     entrypoint: /opt/airflow/entrypoint.sh
     command: ["airflow", "webserver"]
     healthcheck:
@@ -60,6 +59,7 @@ services:
   airflow-scheduler:
     image: apache/airflow:2.7.3-python3.10
     container_name: airflow-scheduler
+    restart: always
     depends_on:
       postgres:
         condition: service_healthy
@@ -76,13 +76,13 @@ services:
       - /media/inglorious/ds/logs/plugins:/opt/airflow/plugins
     networks:
       - c8_crons
-    restart: always
     entrypoint: /opt/airflow/entrypoint.sh
     command: ["airflow", "scheduler"]
 
   kafka:
     image: confluentinc/cp-kafka:7.9.1
     container_name: kafka-server
+    restart: always
     hostname: kafka-server
     ports:
       - "9092:9092"
@@ -107,7 +107,6 @@ services:
       - kafka_data:/var/lib/kafka/data
     networks:
       - c8_crons
-    restart: always
     healthcheck:
       test: ["CMD-SHELL", "echo > /dev/tcp/kafka-server/9092 || exit 1"]
       interval: 30s
