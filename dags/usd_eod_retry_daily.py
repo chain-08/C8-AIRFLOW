@@ -4,9 +4,9 @@ from datetime import datetime, timedelta
 from utils.eod_fetcher import fetch_and_store_eod_data
 import pendulum
 
-DAG_ID = "inr_currency_eod_pipeline"
-SCHEDULE_CRON = "0 16 * * 1-5"  # 10:00 PM IST = 16:00 UTC
-IST = pendulum.timezone("Asia/Kolkata")  # ✅ Valid in pendulum 2.1.2
+DAG_ID = "usd_currency_eod_retry"
+SCHEDULE_CRON = "0 8 * * 1-5"  # 3:00 AM New York = 08:00 UTC
+TZ = pendulum.timezone("America/New_York")
 
 default_args = {
     "owner": "airflow",
@@ -19,16 +19,16 @@ def create_dag():
     with DAG(
         dag_id=DAG_ID,
         default_args=default_args,
-        start_date=datetime(2024, 1, 1, tzinfo=IST),
+        start_date=datetime(2024, 1, 1, tzinfo=TZ),
         schedule_interval=SCHEDULE_CRON,
         catchup=False,
-        tags=["inr", "eod", "clickhouse"],
+        tags=["usd", "eod", "clickhouse", "retry"],
     ) as dag:
 
-        fetch_task = PythonOperator(
-            task_id="fetch_and_store_eod",
+        retry_task = PythonOperator(
+            task_id="retry_failed_tickers",
             python_callable=fetch_and_store_eod_data,
-            op_kwargs={"retry_failed": False, "currency": "INR"},
+            op_kwargs={"retry_failed": True, "currency": "USD"},
         )
 
         return dag
