@@ -40,6 +40,7 @@ services:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
       AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW__CORE__FERNET_KEY:-your_fernet_key_here}
+      AIRFLOW__API__AUTH_BACKENDS: airflow.api.auth.backend.basic_auth
     volumes:
       - ./entrypoint.sh:/opt/airflow/entrypoint.sh
       - ./dags:/opt/airflow/dags
@@ -69,6 +70,7 @@ services:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
       AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW__CORE__FERNET_KEY:-your_fernet_key_here}
+      AIRFLOW__API__AUTH_BACKENDS: airflow.api.auth.backend.basic_auth
     volumes:
       - ./entrypoint.sh:/opt/airflow/entrypoint.sh
       - ./dags:/opt/airflow/dags
@@ -113,6 +115,33 @@ services:
       retries: 5
       start_period: 40s
       timeout: 10s
+
+  atlas-observer:
+    container_name: atlas-observer
+    image: atlas-observer:dev
+    build:
+      context: ../c8-atlas            # repo root so pyproject.toml and src/ are in context
+      dockerfile: docker/Dockerfile   # the Dockerfile we created above
+    environment:
+      AIRFLOW_BASE_URL: http://airflow-webserver:8080
+      AIRFLOW_USERNAME: ${AIRFLOW_USERNAME}
+      AIRFLOW_PASSWORD: ${AIRFLOW_PASSWORD}
+      SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN}
+      SLACK_CHANNEL_DIGEST: ${SLACK_CHANNEL_DIGEST:-#atlas-digest}
+      ATLAS_ENV: ${ATLAS_ENV:-dev}
+      POLL_INTERVAL_SEC: ${POLL_INTERVAL_SEC:-120}
+      DIGEST_CRON_IST: ${DIGEST_CRON_IST:-"15 9 * * *"}
+    depends_on:
+    - airflow-webserver
+    ports:
+    - "8087:8087"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8087/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    networks:
+      - c8_crons
 
 networks:
   c8_crons:
